@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>It’s About You and Me – Asynchrones Paarquiz</title>
+<style>
+  :root{
+    --bg:#0f1226;--card:#161a35;--text:#e9ecff;--muted:#b8bcec;
+    --accent:#8a7aff;--accent2:#ff7aa2;--good:#6de39b;--bad:#ff6b6b;
+  }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Arial;
+    color:var(--text);
+    background:
+      radial-gradient(1100px 600px at 0% -20%, #2a2460 0%, #0f1226 60%),
+      radial-gradient(900px 480px at 120% 10%, #3a1e4f 0%, #0f1226 60%),
+      var(--bg);
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:24px;display:grid;gap:16px}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .logo{width:40px;height:40px;border-radius:12px;
+    background:conic-gradient(from 210deg,var(--accent),var(--accent2));
+    display:grid;place-items:center;font-weight:800;color:#0b0b14}
+  h1{font-size:1.2rem;margin:0}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:16px;
+    box-shadow:0 10px 30px rgba(0,0,0,.3);backdrop-filter:blur(6px)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  label{color:var(--muted);font-size:.95rem}
+  input,select,button,textarea{
+    font-size:1rem;border-radius:12px;border:1px solid rgba(255,255,255,.15);
+    background:#10132a;color:var(--text);padding:10px 12px
+  }
+  textarea{width:100%;min-height:110px}
+  button{background:linear-gradient(180deg,var(--accent),#6e5bff);
+    border:none;cursor:pointer;font-weight:700}
+  button.secondary{background:#10132a;border:1px solid rgba(255,255,255,.2)}
+  button.ghost{background:transparent;border:1px dashed rgba(255,255,255,.3)}
+  button:disabled{opacity:.6;cursor:not-allowed}
+  .muted{color:var(--muted);font-size:.95rem}
+  .pill{display:inline-flex;gap:8px;align-items:center;padding:8px 12px;
+    border-radius:999px;background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12)}
+  .question{font-size:1.25rem;margin:10px 0}
+  .choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .choice{padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.15);
+    background:#121636;cursor:pointer;text-align:center;font-weight:700}
+  .choice:hover{outline:2px solid rgba(255,255,255,.12)}
+  .progress{height:10px;background:#0e1124;border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,.12)}
+  .bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s}
+  .result{margin-top:12px;padding:12px;border-radius:12px;background:#0f142d;border:1px solid rgba(255,255,255,.1)}
+  .match{color:var(--good)} .diff{color:var(--bad)}
+  .grid{display:grid;gap:10px}
+  .summary-item{display:grid;gap:6px;padding:12px;border-radius:12px;background:#0f142d;border:1px solid rgba(255,255,255,.08)}
+  @media (max-width:640px){.choices{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">❤</div>
+    <div>
+      <h1>It’s About You and Me – Asynchrones Paarquiz</h1>
+      <div class="muted">„Wer würde eher…?“ – solo spielen, später vergleichen.</div>
+    </div>
+  </header>
+
+  <!-- MODE WÄHLEN / AUTO-DETEKT -->
+  <section id="modeInfo" class="card">
+    <div class="row">
+      <span class="pill">Modus</span>
+      <button id="modeP1" class="secondary">Ich bin Person 1 (Starte & teile Link)</button>
+      <button id="modeP2" class="secondary">Ich bin Person 2 (Habe Link/Code)</button>
+    </div>
+    <div class="muted" id="autoHint"></div>
+  </section>
+
+  <!-- SETUP P1 -->
+  <section id="setupP1" class="card" style="display:none;">
+    <h2 style="margin:0 0 8px;">Start (Person 1)</h2>
+    <div class="row">
+      <label>Dein Name (Person 1)</label>
+      <input id="p1Name" placeholder="Anna" />
+      <label>Name von Person 2</label>
+      <input id="p2Name" placeholder="Marc" />
+      <label>Anzahl Fragen</label>
+      <select id="qCount">
+        <option>5</option><option>10</option><option selected>15</option><option>20</option>
+      </select>
+    </div>
+    <div class="muted">Du beantwortest alle Fragen. Danach bekommst du einen Link/Code für Person 2.</div>
+    <div class="row" style="margin-top:8px;">
+      <button id="startP1">Quiz starten</button>
+    </div>
+  </section>
+
+  <!-- SETUP P2 -->
+  <section id="setupP2" class="card" style="display:none;">
+    <h2 style="margin:0 0 8px;">Beitritt (Person 2)</h2>
+    <div id="p2Auto" class="muted" style="display:none;">Link erkannt. Bestätige nur noch deinen Namen und starte.</div>
+    <div class="row">
+      <label>Dein Name (Person 2)</label>
+      <input id="p2NameField" placeholder="Marc" />
+    </div>
+    <div class="row">
+      <label>Einladungs-Code (falls kein Link)</label>
+      <textarea id="inviteCode" placeholder="Code hier einfügen (von Person 1)"></textarea>
+    </div>
+    <div class="row">
+      <button id="parseInvite" class="secondary">Code prüfen</button>
+      <button id="startP2" disabled>Quiz starten</button>
+    </div>
+    <div id="p2Meta" class="muted"></div>
+  </section>
+
+  <!-- QUIZ -->
+  <section id="quiz" class="card" style="display:none;">
+    <div class="row" style="justify-content:space-between;">
+      <span class="pill" id="whoLabel">—</span>
+      <div style="flex:1;min-width:160px;margin-left:12px;">
+        <div class="progress"><div id="prog" class="bar"></div></div>
+      </div>
+      <span class="pill" id="counter">Frage 1/1</span>
+    </div>
+    <div id="qText" class="question">—</div>
+    <div class="choices">
+      <div id="btnA" class="choice">—</div>
+      <div id="btnB" class="choice">—</div>
+    </div>
+    <div id="instant" class="result" style="display:none;"></div>
+  </section>
+
+  <!-- TEILEN NACH P1 -->
+  <section id="share" class="card" style="display:none;">
+    <h2 style="margin:0 0 8px;">Teile mit Person 2</h2>
+    <div class="grid">
+      <div class="muted">Sende diesen Link <b>oder</b> den Code an Person 2.</div>
+      <input id="shareLink" readonly />
+      <textarea id="shareCode" readonly></textarea>
+      <div class="row">
+        <button class="ghost" id="copyLink">Link kopieren</button>
+        <button class="ghost" id="copyCode">Code kopieren</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SUMMARY -->
+  <section id="summary" class="card" style="display:none;">
+    <h2 style="margin:0 0 8px;">Gesamtauswertung</h2>
+    <div class="row" style="gap:8px;">
+      <span class="pill">Matches: <b id="sumMatch">0</b></span>
+      <span class="pill">Redebedarf: <b id="sumDiff">0</b></span>
+      <span class="pill">Score: <b id="sumScore">—</b></span>
+      <button id="getResultLink" class="ghost">Ergebnis-Link kopieren</button>
+    </div>
+    <div id="detail" class="grid" style="margin-top:12px;"></div>
+  </section>
+
+  <!-- ERGEBNIS-VIEW (nur wenn Link mit beiden Antworten geöffnet wird) -->
+  <section id="viewOnly" class="card" style="display:none;">
+    <h2 style="margin:0 0 8px;">Ergebnisansicht</h2>
+    <div class="muted" id="viewMeta"></div>
+    <div id="viewDetail" class="grid" style="margin-top:12px;"></div>
+  </section>
+
+</div>
+
+<script>
+/* ---------- Hilfen: Kodierung ---------- */
+const enc = (obj)=> btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+const dec = (str)=> JSON.parse(decodeURIComponent(escape(atob(str))));
+
+/* ---------- Fragenbank ---------- */
+const BANK = [
+  "Wer würde eher mitten in der Nacht wegen Hunger aufstehen?",
+  "Wer würde eher ein Wochenende komplett im Pyjama verbringen?",
+  "Wer würde eher den Jahrestag vergessen?",
+  "Wer würde eher spontan einen Roadtrip starten?",
+  "Wer würde eher beim Film zuerst weinen?",
+  "Wer würde eher das Dessert zuerst essen?",
+  "Wer würde eher eine Pflanze adoptieren und ihr einen Namen geben?",
+  "Wer würde eher zu spät kommen – aber mit Kaffee für alle?",
+  "Wer würde eher die Playlist auf der Party übernehmen?",
+  "Wer würde eher das perfekte Geschenk finden?",
+  "Wer würde eher im Regen tanzen?",
+  "Wer würde eher ein Buch an einem Tag durchlesen?",
+  "Wer würde eher beim Ikea ohne Plan losgehen – und alles kaufen?",
+  "Wer würde eher die Fernbedienung verlegen?",
+  "Wer würde eher eine Schneeballschlacht starten?",
+  "Wer würde eher den Wetterbericht kommentieren wie ein Profi?",
+  "Wer würde eher beim Sport den Ehrgeiz übertreiben?",
+  "Wer würde eher mit Kindern auf dem Boden Lego bauen?",
+  "Wer würde eher beim Wandern die Abkürzung (aka Umweg) nehmen?",
+  "Wer würde eher im Restaurant das Essen des anderen probieren?"
+];
+
+/* ---------- UI Elemente ---------- */
+const $ = (s)=>document.querySelector(s);
+const modeInfo = $("#modeInfo");
+const modeP1 = $("#modeP1");
+const modeP2 = $("#modeP2");
+const autoHint = $("#autoHint");
+
+const setupP1 = $("#setupP1");
+const setupP2 = $("#setupP2");
+const p1Name = $("#p1Name");
+const p2Name = $("#p2Name");
+const qCount = $("#qCount");
+const startP1 = $("#startP1");
+
+const p2NameField = $("#p2NameField");
+const inviteCode = $("#inviteCode");
+const parseInvite = $("#parseInvite");
+const startP2 = $("#startP2");
+const p2Auto = $("#p2Auto");
+const p2Meta = $("#p2Meta");
+
+const quiz = $("#quiz");
+const whoLabel = $("#whoLabel");
+const prog = $("#prog");
+const counter = $("#counter");
+const qText = $("#qText");
+const btnA = $("#btnA");
+const btnB = $("#btnB");
+const instant = $("#instant");
+
+const share = $("#share");
+const shareLink = $("#shareLink");
+const shareCode = $("#shareCode");
+const copyLink = $("#copyLink");
+const copyCode = $("#copyCode");
+
+const summary = $("#summary");
+const sumMatch = $("#sumMatch");
+const sumDiff = $("#sumDiff");
+const sumScore = $("#sumScore");
+const detail = $("#detail");
+const getResultLink = $("#getResultLink");
+
+const viewOnly = $("#viewOnly");
+const viewMeta = $("#viewMeta");
+const viewDetail = $("#viewDetail");
+
+/* ---------- State ---------- */
+let role = null; // "P1" | "P2" | "VIEW"
+let sess = null; // Sessionobjekt
+let idx = 0; // aktuelle Frage
+let picks = []; // Antworten der aktiven Person
+
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+/* ---------- Modus erkennen (URL-Hash) ---------- */
+(function detect(){
+  const hash = new URLSearchParams(location.hash.slice(1));
+  if(hash.has("token")){ // Person 2 beitritt
+    role = "P2";
+    modeInfo.style.display="none";
+    setupP2.style.display="block";
+    p2Auto.style.display="block";
+    try{
+      const obj = dec(hash.get("token"));
+      sess = obj;
+      p2Meta.textContent = `Quiz von ${obj.aName} für ${obj.bName} – ${obj.total} Fragen.`;
+      p2NameField.placeholder = obj.bName || "Person 2";
+      // Vorausgefüllt, aber änderbar
+      p2NameField.value = obj.bName || "";
+      startP2.disabled = false;
+      autoHint.textContent = "Einladungslink erkannt. Du kannst direkt starten.";
+    }catch(e){
+      autoHint.textContent = "Link fehlerhaft. Bitte Code von Person 1 einfügen.";
+    }
+    return;
+  }
+  if(hash.has("result")){ // Ergebnisansicht
+    role = "VIEW";
+    modeInfo.style.display="none";
+    renderView(hash.get("result"));
+    return;
+  }
+  autoHint.textContent = "Tipp: Person 1 startet, beantwortet alles und teilt danach den Link/Code mit Person 2.";
+})();
+
+/* ---------- Modus Buttons ---------- */
+modeP1.addEventListener("click", ()=>{
+  role="P1";
+  modeInfo.style.display="none";
+  setupP1.style.display="block";
+});
+
+modeP2.addEventListener("click", ()=>{
+  role="P2";
+  modeInfo.style.display="none";
+  setupP2.style.display="block";
+});
+
+/* ---------- Start P1 ---------- */
+startP1.addEventListener("click", ()=>{
+  const a = (p1Name.value||"Anna").trim();
+  const b = (p2Name.value||"Marc").trim();
+  let total = Math.min(20, Math.max(1, parseInt(qCount.value,10)||10));
+  const questions = shuffle([...BANK]).slice(0,total);
+  sess = { aName:a, bName:b, total, questions, answersA:[], ts:Date.now() };
+  role="P1";
+  beginQuiz();
+});
+
+/* ---------- Code prüfen P2 ---------- */
+parseInvite.addEventListener("click", ()=>{
+  try{
+    sess = dec(inviteCode.value.trim());
+    p2Meta.textContent = `Quiz von ${sess.aName} für ${sess.bName} – ${sess.total} Fragen.`;
+    p2NameField.placeholder = sess.bName || "Person 2";
+    startP2.disabled = false;
+  }catch(e){
+    p2Meta.textContent = "Code ungültig. Bitte erneut einfügen.";
+    startP2.disabled = true;
+  }
+});
+
+/* ---------- Start P2 ---------- */
+startP2.addEventListener("click", ()=>{
+  if(!sess){ p2Meta.textContent="Kein gültiger Link/Code."; return; }
+  const provided = (p2NameField.value||sess.bName||"Person 2").trim();
+  sess.bName = provided; // aktualisieren für UI
+  role="P2";
+  beginQuiz();
+});
+
+/* ---------- Quiz starten ---------- */
+function beginQuiz(){
+  setupP1.style.display="none";
+  setupP2.style.display="none";
+  share.style.display="none";
+  summary.style.display="none";
+  viewOnly.style.display="none";
+
+  quiz.style.display="block";
+  idx = 0;
+  picks = [];
+  instant.style.display="none";
+  renderQuestion();
+}
+
+function setProgress(){
+  prog.style.width = `${(idx / sess.total)*100}%`;
+  counter.textContent = `Frage ${Math.min(idx+1, sess.total)}/${sess.total}`;
+}
+
+function renderQuestion(){
+  if(idx >= sess.total){
+    finishPhase();
+    return;
+  }
+  setProgress();
+  const q = sess.questions[idx];
+  qText.textContent = q;
+  whoLabel.textContent = role==="P1"
+    ? `${sess.aName} antwortet`
+    : `${sess.bName} antwortet`;
+  btnA.textContent = sess.aName;
+  btnB.textContent = sess.bName;
+}
+
+btnA.addEventListener("click", ()=> choose(sess.aName));
+btnB.addEventListener("click", ()=> choose(sess.bName));
+
+function choose(pick){
+  picks.push(pick);
+  idx++;
+  instant.style.display="none"; // P1/P2 sehen nur ihre eigene Wahl
+  renderQuestion();
+}
+
+/* ---------- Phase beenden ---------- */
+function finishPhase(){
+  quiz.style.display="none";
+  if(role==="P1"){
+    // Speichere Antworten A und erstelle Einladungslink/Code
+    sess.answersA = picks.slice(0, sess.total);
+    const token = enc(sess);
+    const url = `${location.origin}${location.pathname}#token=${token}`;
+    share.style.display="block";
+    shareLink.value = url;
+    shareCode.value = token;
+  }else if(role==="P2"){
+    // Vergleichen & Zusammenfassung anzeigen, plus Ergebnis-Link erzeugen
+    const answersB = picks.slice(0, sess.total);
+    renderSummary(sess.answersA, answersB);
+  }
+}
+
+/* ---------- Zusammenfassung ---------- */
+function renderSummary(aAns, bAns){
+  summary.style.display="block";
+  detail.innerHTML = "";
+  let matches=0;
+  for(let i=0;i<sess.total;i++){
+    const q = sess.questions[i];
+    const a = aAns[i];
+    const b = bAns[i];
+    const m = a===b;
+    if(m) matches++;
+    const row = document.createElement("div");
+    row.className="summary-item";
+    row.innerHTML = `
+      <div class="muted">Frage ${i+1}</div>
+      <div><b>${q}</b></div>
+      <div>${m?`<span class="match">It’s a match 💕</span>`:`<span class="diff">Ihr habt Redebedarf 😏</span>`}</div>
+      <div class="muted">${sess.aName}: <b>${a}</b> &nbsp;|&nbsp; ${sess.bName}: <b>${b}</b></div>
+    `;
+    detail.appendChild(row);
+  }
+  const diffs = sess.total - matches;
+  sumMatch.textContent = matches;
+  sumDiff.textContent = diffs;
+  let verdict = "Chaosduo mit Herz – Stoff für Gespräche 🧩";
+  if(matches===sess.total) verdict="Perfect Match – Dreamteam! 🌟";
+  else if(matches >= Math.ceil(sess.total*0.75)) verdict="Starkes Duo mit Telepathie-Momenten 💫";
+  else if(matches >= Math.ceil(sess.total*0.5)) verdict="Gute Mischung – Harmonie mit Würze 💞";
+  sumScore.textContent = verdict;
+
+  // Ergebnis-Link (damit P2 das Finale zurück an P1 senden kann)
+  const resultPayload = { ...sess, answersB: bAns };
+  const resultToken = enc(resultPayload);
+  getResultLink.onclick = ()=>{
+    const url = `${location.origin}${location.pathname}#result=${resultToken}`;
+    navigator.clipboard.writeText(url).catch(()=>{});
+    getResultLink.textContent = "Ergebnis-Link kopiert ✓";
+    setTimeout(()=> getResultLink.textContent="Ergebnis-Link kopieren", 1200);
+  };
+}
+
+/* ---------- Ergebnis-Only Ansicht (für P1 nach Rücklink) ---------- */
+function renderView(token){
+  try{
+    const data = dec(token);
+    // Erwartet: aName,bName,total,questions,answersA,answersB
+    viewOnly.style.display="block";
+    viewDetail.innerHTML="";
+    viewMeta.textContent = `${data.aName} & ${data.bName} · ${data.total} Fragen`;
+    let matches=0;
+    for(let i=0;i<data.total;i++){
+      const q=data.questions[i], a=data.answersA[i], b=data.answersB[i];
+      const m=a===b; if(m) matches++;
+      const row=document.createElement("div");
+      row.className="summary-item";
+      row.innerHTML=`
+        <div class="muted">Frage ${i+1}</div>
+        <div><b>${q}</b></div>
+        <div>${m?`<span class="match">It’s a match 💕</span>`:`<span class="diff">Ihr habt Redebedarf 😏</span>`}</div>
+        <div class="muted">${data.aName}: <b>${a}</b> &nbsp;|&nbsp; ${data.bName}: <b>${b}</b></div>
+      `;
+      viewDetail.appendChild(row);
+    }
+    // Kleines Badge oben einblenden
+    const pill=document.createElement("div");
+    pill.className="pill";
+    pill.style.marginTop="8px";
+    const diffs = data.total - matches;
+    pill.innerHTML = `Matches: <b>${matches}</b> · Redebedarf: <b>${diffs}</b>`;
+    viewOnly.prepend(pill);
+  }catch(e){
+    viewOnly.style.display="block";
+    viewOnly.innerHTML = "<p>Ergebnis-Link ungültig oder beschädigt.</p>";
+  }
+}
+
+/* ---------- Share-Buttons ---------- */
+copyLink.addEventListener("click", ()=>{
+  navigator.clipboard.writeText(shareLink.value).then(()=>{
+    copyLink.textContent="Link kopiert ✓";
+    setTimeout(()=>copyLink.textContent="Link kopieren", 1200);
+  });
+});
+copyCode.addEventListener("click", ()=>{
+  navigator.clipboard.writeText(shareCode.value).then(()=>{
+    copyCode.textContent="Code kopiert ✓";
+    setTimeout(()=>copyCode.textContent="Code kopieren", 1200);
+  });
+});
+</script>
+</body>
+</html>
